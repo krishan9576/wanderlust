@@ -1,0 +1,145 @@
+const Listing = require("../models/listing");
+
+module.exports.index = async(req,res)=>{
+        const allListings = await Listing.find({});
+        res.render("listings/index.ejs",{allListings});
+    };
+
+module.exports.renderNewForm=(req,res)=>{
+            
+            res.render("listings/new.ejs");
+    
+        };
+
+  module.exports.showListing = async (req,res)=>{
+                let {id}=req.params;
+                 const listing =  await Listing.findById(id)
+                 .populate({
+                    path:"reviews",
+                    populate:{
+                    path:"author"
+                },
+                })
+                .populate("owner");
+                 if(!listing){
+                    req.flash("error", "Listing you requested for does not exist");
+                   return res.redirect("/listings");
+                 }
+                 console.log(listing);
+                 res.render("listings/show.ejs",{listing});
+            };
+
+
+ module.exports.createListing = async (req, res) => {
+    let url = req.file.path;
+    let filename = req.file.filename;
+
+    const newListing = new Listing(req.body.listing);
+
+    try {
+        // OpenStreetMap Nominatim Geocoding
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newListing.location)}`,
+            {
+                headers: {
+                    "User-Agent": "Wanderlust-App"
+                }
+            }
+        );
+
+        const data = await response.json();
+
+        if (data.length > 0) {
+            newListing.geometry = {
+                type: "Point",
+                coordinates: [
+                    parseFloat(data[0].lon),
+                    parseFloat(data[0].lat)
+                ]
+            };
+        } else {
+            newListing.geometry = {
+                type: "Point",
+                coordinates: [0, 0]
+            };
+        }
+
+    } catch (err) {
+        console.log("Geocoding Error:", err);
+
+        newListing.geometry = {
+            type: "Point",
+            coordinates: [0, 0]
+        };
+    }
+
+    newListing.owner = req.user._id;
+    newListing.image = { url, filename };
+
+    await newListing.save();
+
+    req.flash("success", "New Listing Created!");
+    res.redirect(`/listings/${newListing._id}`);
+};
+
+module.exports.renderEditForm = async (req,res)=>{
+    let {id}=req.params;
+    const listing =  await Listing.findById(id);
+     if(!listing){
+       req.flash("error", "Listing you requested for does not exist");
+        return res.redirect("/listings");
+             }
+
+             let originalImageUrl =listing.image.url;
+              originalImageUrl= originalImageUrl.replace("/upload","/upload/w_250");
+         res.render("listings/edit.ejs",{listing,originalImageUrl});
+                
+         };
+
+
+ module.exports.updateListing = async (req, res) => {
+            let { id } = req.params;
+            // req.body.listing.image.filename = "listingimage";
+            let listing =await Listing.findByIdAndUpdate(id, req.body.listing);
+
+            if(typeof req.file !=="undefined"){
+            let url=req.file.path;
+            let filename=req.file.filename;
+            listing.image={url,filename};
+            await listing.save();
+            }
+
+            req.flash("success", " Listing updated!");
+            res.redirect(`/listings/${id}`);
+        };
+
+
+ module.exports.destroyListing = async(req,res)=>{
+    let {id}=req.params;
+    let deletedListing = await Listing.findByIdAndDelete(id);
+    console.log(deletedListing);
+    req.flash("success", " Listing Deleted");
+    res.redirect("/listings");
+};
+
+module.exports.categoryListings = async (req, res) => {
+    const { category } = req.params;
+
+    const allListings = await Listing.find({ category });
+
+    res.render("listings/index", { allListings });
+};
+
+module.exports.searchListing = async (req, res) => {
+    const { q } = req.query;
+
+    const allListings = await Listing.find({
+        $or: [
+            { title: { $regex: q, $options: "i" } },
+            { location: { $regex: q, $options: "i" } },
+            { country: { $regex: q, $options: "i" } }
+        ]
+    });
+
+    res.render("listings/index.ejs", { allListings });
+};
