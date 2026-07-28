@@ -5,7 +5,7 @@ dns.setServers([
     "8.8.4.4"
 ]);
 
-require("dotenv").config();
+// require("dotenv").config();
 
  
  if(process.env.NODE_ENV !="production"){
@@ -68,6 +68,9 @@ app.use(express.static(path.join(__dirname,"/public")));
 
 const store = MongoStore.create({
     mongoUrl:dbUrl,
+    crypto:{
+        secret: process.env.SECRET,
+    },
     touchAfter:24*3600,//for lazy update
 
  });
@@ -145,22 +148,17 @@ app.all("/{*splat}",(req,res,next)=>{
 });
 
 
-// app.use((err, req, res, next) => {
-//     let { statusCode = 500, message = "Something went wrong!" } = err;
-//     // res.status(statusCode).send(message);
-//     res.status(statusCode).render("error.ejs",{message});
-// });
-
 app.use((err, req, res, next) => {
-    console.error(err); // पूरी error Render Logs में दिखेगी
-
     let { statusCode = 500, message = "Something went wrong!" } = err;
-    res.status(statusCode).send(err.stack);
+    // res.status(statusCode).send(message);
+    res.status(statusCode).render("error.ejs",{message});
 });
 
 
-const PORT = process.env.PORT || 8080;
 
-app.listen(PORT, () => {
-    console.log(`Server is listening on port ${PORT}`);
+
+
+
+app.listen(8080, () => {
+    console.log(`Server is listening on port`);
 });
